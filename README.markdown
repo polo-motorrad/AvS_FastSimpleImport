@@ -2,9 +2,12 @@ AvS_FastSimpleImport
 =====================
 Wrapper for Magento ImportExport functionality which imports data from arrays
 
+[Documentation](http://avstudnitz.github.io/AvS_FastSimpleImport/)
+-------------------------------
+
 Facts
 -----
-- version: 0.5.0
+- version: 0.6.0
 - extension key: AvS_FastSimpleImport
 - extension on Magento Connect: n/a
 - Magento Connect 1.0 extension key: n/a
@@ -59,11 +62,16 @@ Contribution
 ------------
 Any contribution is highly appreciated. The best way to contribute code is to open a [pull request on GitHub](https://help.github.com/articles/using-pull-requests).
 
-Lead Developer
+Lead Developers
 ---------
-Andreas von Studnitz 
+Andreas von Studnitz
 http://www.integer-net.de/agentur/andreas-von-studnitz/
 [@avstudnitz](https://twitter.com/avstudnitz)
+
+Paul Hachmang
+http://www.h-o.nl/
+[@paales](https://twitter.com/paales)
+
 
 License
 -------
