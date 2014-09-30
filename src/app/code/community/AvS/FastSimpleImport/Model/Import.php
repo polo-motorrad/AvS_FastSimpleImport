@@ -242,6 +242,125 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         return $validationResult;
     }
 
+    public function dryrunOrderImport($data, $behavior = NULL)
+    {
+        $transport = new Varien_Object(array('import_data' => $data));
+        Mage::dispatchEvent('fastsimpleimport_dryrun_order_before', array('import_data' => $transport));
+        $data = $transport->getImportData();
+
+        if (!is_null($behavior)) {
+            $this->setBehavior($behavior);
+        }
+
+        $this->setUseNestedArrays(false);
+
+        $this->setEntity(Mage_Sales_Model_Order::ENTITY);
+
+        /** @var $entityAdapter AvS_FastSimpleImport_Model_Import_Entity_Category_Product */
+        $entityAdapter = Mage::getModel('fastsimpleimport/import_entity_order');
+        $entityAdapter->setBehavior($this->getBehavior());
+        $entityAdapter->setErrorLimit($this->getErrorLimit());
+//        $entityAdapter->setUnsetEmptyFields($this->getUnsetEmptyFields());
+//        $entityAdapter->setSymbolEmptyFields($this->getSymbolEmptyFields());
+        $this->setEntityAdapter($entityAdapter);
+        $validationResult = $this->validateSource($data);
+        return $validationResult;
+    }
+    public function processOrderImport($data, $behavior = NULL)
+    {
+        $transport = new Varien_Object(array('import_data' => $data));
+        Mage::dispatchEvent('fastsimpleimport_import_oders_before', array('import_data' => $transport));
+        $data = $transport->getImportData();
+
+        if (!is_null($behavior)) {
+            $this->setBehavior($behavior);
+        }
+        $this->setUseNestedArrays(false);
+
+        $this->setEntity(Mage_Sales_Model_Order::ENTITY);
+
+        $partialIndexing = $this->getPartialIndexing();
+
+        /** @var $entityAdapter AvS_FastSimpleImport_Model_Import_Entity_Category_Product */
+        $entityAdapter = Mage::getModel('fastsimpleimport/import_entity_order');
+        $entityAdapter->setBehavior($this->getBehavior());
+        $entityAdapter->setErrorLimit($this->getErrorLimit());
+        $entityAdapter->setIgnoreDuplicates($this->getIgnoreDuplicates());
+//        $entityAdapter->setUnsetEmptyFields($this->getUnsetEmptyFields());
+//        $entityAdapter->setSymbolEmptyFields($this->getSymbolEmptyFields());
+        $this->setEntityAdapter($entityAdapter);
+        $validationResult = $this->validateSource($data);
+        if ($this->getProcessedRowsCount() > 0) {
+            if (!$validationResult) {
+                if ($entityAdapter->getErrorsCount() >= $entityAdapter->getErrorsLimit()) {
+                    Mage::throwException(
+                        sprintf("Error Limit of %s Errors reached, stopping import.", $entityAdapter->getErrorsLimit())
+                        . "\n" . $this->getErrorMessage()
+                    );
+                }
+
+                if (!$this->getContinueAfterErrors()) {
+                    Mage::throwException($this->getErrorMessage());
+                }
+            }
+
+
+            if ($this->getProcessedRowsCount() > $this->getInvalidRowsCount()) {
+                $this->importSource(); // this resets the internal previously set _data array :-( that's why $partialIndexing is needed
+                if (!empty($partialIndexing)) {
+                    // @todo no index for orders available
+                    // $this->getEntityAdapter()->reindexImportedCategoryProduct();
+                }
+            }
+        }
+
+        return $this;
+    }
+
+    public function processAttributeOptionImport($data, $behavior = NULL)
+    {
+        if (!is_null($behavior)) {
+            $this->setBehavior($behavior);
+        }
+
+        $partialIndexing = $this->getPartialIndexing();
+
+        /** @var $entityAdapter AvS_FastSimpleImport_Model_Import_Attribute_Option */
+        $importAdapter = Mage::getModel('fastsimpleimport/import_attribute_option');
+        $importAdapter->setBehavior($this->getBehavior());
+        $importAdapter->setErrorLimit($this->getErrorLimit());
+        $this->setImporter($importAdapter);
+        $validationResult = $this->validateSource($data);
+        if ($this->getImporter()->getProcessedRowsCount() > 0) {
+            if (!$validationResult) {
+                if ($importAdapter->getErrorsCount() >= $importAdapter->getErrorsLimit()) {
+                    Mage::throwException(
+                        sprintf("Error Limit of %s Errors reached, stopping import.", $importAdapter->getErrorsLimit())
+                        . "\n" . $this->getImporter()->getErrorMessage()
+                    );
+                }
+
+                if (!$this->getContinueAfterErrors()) {
+                    Mage::throwException($this->getImporter()->getErrorMessage());
+                }
+            }
+
+            if ($this->getImporter()->getProcessedRowsCount() > $this->getImporter()->getInvalidRowsCount()) {
+                $this->getImporter()->importSource();
+
+/*
+                if (!empty($partialIndexing)) {
+                    $this->getEntityAdapter()->reindexImportedCategories();
+                } else {
+                    $this->invalidateIndex();
+                }
+*/
+            }
+        }
+
+        return $this;
+    }
+
     /**
      * Import categories
      *
@@ -492,6 +611,15 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
         return $this->getEntityAdapter()->getErrorMessages();
     }
 
+    public function getImporter()
+    {
+        return $this->_importer;
+    }
+
+    public function setImporter($importer)
+    {
+        $this->_importer = $importer;
+    }
     /**
      * Validates source file and returns validation result.
      *
@@ -501,10 +629,15 @@ class AvS_FastSimpleImport_Model_Import extends Mage_ImportExport_Model_Import
      */
     public function validateSource($sourceData)
     {
-        $result = $this->_getEntityAdapter()
-            ->setArraySource($this->_getSourceAdapter($sourceData))
-            ->isDataValid();
-
+        if ($this->getEntityAdapter()) {
+            $result = $this->_getEntityAdapter()
+                ->setArraySource($this->_getSourceAdapter($sourceData))
+                ->isDataValid();
+        } else {
+            $result = $this->getImporter()
+                ->setArraySource($this->_getSourceAdapter($sourceData))
+                ->isDataValid();
+        }
         return $result;
     }
 
