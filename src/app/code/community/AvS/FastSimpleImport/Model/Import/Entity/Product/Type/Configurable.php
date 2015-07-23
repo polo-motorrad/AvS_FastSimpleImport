@@ -14,6 +14,9 @@
 class AvS_FastSimpleImport_Model_Import_Entity_Product_Type_Configurable
     extends Mage_ImportExport_Model_Import_Entity_Product_Type_Configurable
 {
+  var $_bunch;
+  var $_newSku;
+  var $_oldSku;
     /**
      * Prepare attributes values for save: remove non-existent, remove empty values, remove static.
      *
@@ -125,7 +128,51 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product_Type_Configurable
         return !isset($oldSkus[$sku]);
     }
 
+  /**
+   * Array of SKU to array of super attribute values for all products.
+   *
+   * @return Mage_ImportExport_Model_Import_Entity_Product_Type_Configurable
+   */
+    protected function _loadSkuSuperAttributeValues()
+    {
+      $bunch = $this->_bunch;
+      $newSku = $this->_newSku;
+      $oldSku = $this->_oldSku;
+      if ($this->_superAttributes) {
+        $attrSetIdToName   = $this->_entityModel->getAttrSetIdToName();
+        $allowProductTypes = array();
+        $productIdArray = array();
 
+        foreach ($bunch as $rowData){
+          if (!empty($rowData['_super_products_sku'])) {
+            if (isset($newSku[$rowData['_super_products_sku']])) {
+              $productIdArray[] = $newSku[$rowData['_super_products_sku']];
+            } elseif (isset($oldSku[$rowData['_super_products_sku']])) {
+              $productIdArray[] = $oldSku[$rowData['_super_products_sku']];
+            }
+          }
+        }
+        foreach (Mage::getConfig()
+                ->getNode('global/catalog/product/type/configurable/allow_product_types')->children() as $type) {
+            $allowProductTypes[] = $type->getName();
+        }
+        foreach (Mage::getResourceModel('catalog/product_collection')
+                    ->addFieldToFilter('type_id', $allowProductTypes)
+                    ->addFieldToFilter ('entity_id', array('in' => $productIdArray))
+                    ->addAttributeToSelect(array_keys($this->_superAttributes)) as $product) {
+            $attrSetName = $attrSetIdToName[$product->getAttributeSetId()];
+            $data = array_intersect_key(
+                  $product->getData(),
+                  $this->_superAttributes
+              );
+            foreach ($data as $attrCode => $value) {
+                $attrId = $this->_superAttributes[$attrCode]['id'];
+                $this->_skuSuperAttributeValues[$attrSetName][$product->getId()][$attrId] = $value;
+            }
+          }
+        }
+      return $this;
+    }
     /**
      * Save product type specific data.
      *
@@ -149,7 +196,6 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product_Type_Configurable
         if ($this->_entityModel->getBehavior() == Mage_ImportExport_Model_Import::BEHAVIOR_APPEND) {
             $this->_loadSkuSuperData();
         }
-        $this->_loadSkuSuperAttributeValues();
 
         while ($bunch = $this->_entityModel->getNextBunch()) {
             $superAttributes = array(
@@ -158,7 +204,11 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product_Type_Configurable
                 'pricing'    => array(),
                 'super_link' => array(),
                 'relation'   => array()
-            );
+              );
+            $this->_bunch = $bunch;
+            $this->_newSku = $newSku;
+            $this->_oldSku = $oldSku;
+            $this->_loadSkuSuperAttributeValues();
             foreach ($bunch as $rowNum => $rowData) {
                 if (!$this->_entityModel->isRowAllowedToImport($rowData, $rowNum)) {
                     continue;
