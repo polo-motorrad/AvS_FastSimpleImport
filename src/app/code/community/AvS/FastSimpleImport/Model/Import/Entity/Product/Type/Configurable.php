@@ -50,7 +50,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product_Type_Configurable
                 if (isset($rowData[$attrCode]) && strlen($rowData[$attrCode])) {
                     $resultAttrs[$attrCode] =
                         ('select' == $attrParams['type'] || 'multiselect' == $attrParams['type'])
-                            ? $attrParams['options'][strtolower($rowData[$attrCode])]
+                            ? $attrParams['options'][Mage::helper('fastsimpleimport')->strtolower($rowData[$attrCode])]
                             : $rowData[$attrCode];
                 } elseif (array_key_exists($attrCode, $rowData)) {
                     $resultAttrs[$attrCode] = $rowData[$attrCode];
@@ -245,7 +245,7 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product_Type_Configurable
                     );
                 }
                 if (isset($rowData['_super_attribute_option']) && strlen($rowData['_super_attribute_option'])) {
-                    $optionId = $attrParams['options'][strtolower($rowData['_super_attribute_option'])];
+                    $optionId = $attrParams['options'][Mage::helper('fastsimpleimport')->strtolower($rowData['_super_attribute_option'])];
 
                     if (!isset($productSuperData['used_attributes'][$attrParams['id']][$optionId])) {
                         $productSuperData['used_attributes'][$attrParams['id']][$optionId] = false;
@@ -303,6 +303,51 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product_Type_Configurable
             }
             if ($superAttributes['relation']) {
                 $connection->insertOnDuplicate($relationTable, $superAttributes['relation']);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * Array of SKU to array of super attribute values for all products.
+     *
+     * @return Mage_ImportExport_Model_Import_Entity_Product_Type_Configurable
+     */
+    protected function _loadSkuSuperAttributeValues()
+    {
+        if ($this->_superAttributes) {
+            $attrSetIdToName   = $this->_entityModel->getAttrSetIdToName();
+            $allowProductTypes = array();
+
+            foreach (Mage::getConfig()
+                         ->getNode('global/catalog/product/type/configurable/allow_product_types')->children() as $type) {
+                $allowProductTypes[] = $type->getName();
+            }
+
+            $collection = Mage::getResourceModel('catalog/product_collection')
+                ->addFieldToFilter('type_id', $allowProductTypes)
+                ->addAttributeToSelect(array_keys($this->_superAttributes));
+
+            $collection->setPageSize(200);
+            $pages = $collection->getLastPageNumber();
+
+            for ($currentPage = 1; $currentPage <= $pages; $currentPage++) {
+
+                $collection->setCurPage($currentPage);
+
+                foreach ($collection as $product) {
+                    $attrSetName = $attrSetIdToName[$product->getAttributeSetId()];
+
+                    $data = array_intersect_key(
+                        $product->getData(),
+                        $this->_superAttributes
+                    );
+                    foreach ($data as $attrCode => $value) {
+                        $attrId = $this->_superAttributes[$attrCode]['id'];
+                        $this->_skuSuperAttributeValues[$attrSetName][$product->getId()][$attrId] = $value;
+                    }
+                }
+                $collection->clear();
             }
         }
         return $this;
