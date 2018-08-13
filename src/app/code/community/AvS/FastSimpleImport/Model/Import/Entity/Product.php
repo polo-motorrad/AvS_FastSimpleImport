@@ -1497,7 +1497,9 @@ class AvS_FastSimpleImport_Model_Import_Entity_Product extends AvS_FastSimpleImp
     {
         if ($this->_unsetEmptyFields || $this->_symbolEmptyFields || $this->_symbolIgnoreFields) {
             foreach($rowData as $key => $fieldValue) {
-                if ($this->_unsetEmptyFields && !strlen($fieldValue)) {
+                if (is_array($fieldValue)) {
+                    continue;
+                } else if ($this->_unsetEmptyFields && !strlen($fieldValue)) {
                     unset($rowData[$key]);
                 } else if ($this->_symbolEmptyFields && trim($fieldValue) == $this->_symbolEmptyFields) {
                     $rowData[$key] = NULL;
